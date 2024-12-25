@@ -1,42 +1,49 @@
 require("dotenv").config();
-//  Implement the Apollo Server and apply it to the Express server as middleware.
 const express = require("express");
 const path = require("path");
-// import ApolloServer
+const cors = require("cors"); // Add CORS
 const { ApolloServer } = require("apollo-server-express");
-// middleware function for authentication
 const { authMiddleware } = require("./utils/auth");
-// import typeDefs and resolvers
 const { typeDefs, resolvers } = require("./schemas");
 const db = require("./config/connection");
+
 const app = express();
 const PORT = process.env.PORT || 3001;
-// create a new Apollo server and pass in our schema data
+
+// Enable CORS (adjust the origins as necessary for your use case)
+app.use(cors());
+
+// Create Apollo server instance
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  // context will be used for the the token authentication
-  context: authMiddleware,
+  context: authMiddleware, // Token authentication middleware
 });
 
-// integrate Apollo server with the Express application as middleware
+// Apply Apollo server middleware to Express
 server.applyMiddleware({ app });
 
+// Middleware for parsing incoming requests
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// if we're in production, serve client/build as static assets
+// Serve static files from the React front-end if in production
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client/build")));
 }
 
-// wildcard get route for the server. If we make a get request
-// to any location on the server that doesn't have an explicit
-// route defined, respond with the production -ready react front-end code
+// Wildcard route for all other requests, serving the React front-end
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../client/build/index.html"));
 });
 
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log error stack to the console
+  res.status(500).send("Something went wrong!"); // Send generic error response
+});
+
+// Connect to the database and start the server
 db.once("open", () => {
   app.listen(PORT, () => {
     console.log(`🌍 Now listening on localhost:${PORT}`);
